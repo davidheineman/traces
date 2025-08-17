@@ -2,6 +2,9 @@
 
 ```sh
 pip install -r requirements.txt
+
+# GPT OSS requires pre-release vLLM
+uv pip install --pre vllm==0.10.1+gptoss --extra-index-url https://wheels.vllm.ai/gpt-oss/ --extra-index-url https://download.pytorch.org/whl/nightly/cu128  --index-strategy unsafe-best-match
 ```
 
 **Run eval**

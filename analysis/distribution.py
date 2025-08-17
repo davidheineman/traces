@@ -108,7 +108,7 @@ for tag in reversed(all_tags):
     ax.bar(models, values, bottom=bottom, label=tag, color=tag_colors[tag])
     bottom += values
 
-ax.set_title('Parts of Thinking Traces (Stacked by Model)')
+ax.set_title('Sentence-level Tagging of Thinking Traces (MATH 500, 0shot, temp=0)')
 ax.set_ylabel('Avg. Tokens per Thought Trace')
 # Reverse the legend order to match the visual stacking order
 handles, labels = ax.get_legend_handles_labels()

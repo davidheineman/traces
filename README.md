@@ -59,6 +59,21 @@ python src/annotate_sentences.py -t minerva_500:cot -m DeepSeek-R1-0528-Qwen3-8B
 python src/annotate_sentences.py -t minerva_500:cot -m gpt-oss-20b
 ```
 
+**Local models**
+
+```sh
+# see checkpoints
+tree -L 2 /oe-eval-default/ai2-llm/checkpoints/davidh/OLMo-RLVR/
+
+# eval
+minieval -t minerva_500:cot -m /oe-eval-default/ai2-llm/checkpoints/davidh/OLMo-RLVR/1806rl_qwen2_5_integration_mix_12022__1__1750443080_checkpoints/step_100 -b vllm --writer.save_path out/olmo-rlvr-qwen-2_5-step100
+minieval -t minerva_500:cot -m /oe-eval-default/ai2-llm/checkpoints/davidh/OLMo-RLVR/1806rl_qwen2_5_integration_mix_12022__1__1750443080_checkpoints/step_2200 -b vllm --writer.save_path out/olmo-rlvr-qwen-2_5-step2200
+
+# annotate
+python src/annotate_sentences.py -t minerva_500:cot -m olmo-rlvr-qwen-2_5-step100
+python src/annotate_sentences.py -t minerva_500:cot -m olmo-rlvr-qwen-2_5-step2200
+```
+
 <details>
 <summary>Token-level annotation</summary>
 
@@ -98,3 +113,8 @@ python analysis/distribution.py
     - for different amounts of GPT OSS reasoning?
     - for different tasks?
     - for the subset of tasks with lots of tokens? a small amount of tokens?
+
+- Different properties of traces
+    - what % is spent developing towards the correct answers? compared to computation that is effectively thrown away?
+    - how many tokens in is the final answer suggested? (i.e., how long is spent checking the answer?)
+    - can we split "active computation" into computation for the original answer vs. checking the answer?

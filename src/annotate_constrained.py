@@ -32,7 +32,7 @@ Use this set for the tags:
 7. [self_checking]: Verifying previous steps, checking calculations, and re-confirmations
 8. [final_answer_emission]: Explicitly stating the final answer
 
-Put the tags like this [final_answer_emission]text example[/final_answer_emission]. make sure all text is tagged
+Put the tags like this [final_answer_emission]text example[/final_answer_emission]. MAKE SURE TO GIVE EACH SENTENCE ITS OWN TAG
 
 BEGIN TRACE:
 

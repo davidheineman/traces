@@ -130,10 +130,6 @@ def annotate_trace(trace):
             # Update tqdm
             prev_len = len(curr_trace)
             pbar.update(prev_len - len(curr_trace))
-
-            # print(content)
-            # pprint(allowed)
-            # pprint(logprobs)
     
     return generation
 

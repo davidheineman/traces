@@ -2,3 +2,4 @@ rich
 openai
 tiktoken
 tqdm
+minieval

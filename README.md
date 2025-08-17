@@ -1,15 +1,16 @@
-```sh
-uv venv --python 3.12 /venv
-source /venv/bin/activate
-```
+### setup
 
 ```sh
-pip install minieval
+pip install -r requirements.txt
 ```
+
+**Run eval**
 
 ```sh
 minieval -t minerva_500:cot -m deepseek-ai/DeepSeek-R1-0528-Qwen3-8B -b vllm --writer.save_path out
 ```
+
+**Additional models**
 
 ```sh
 open-thoughts/OpenThinker3-7B
@@ -24,8 +25,10 @@ openai/gpt-oss-20b
 openai/gpt-oss-120b
 ```
 
-Idea: Decoding algorithm for sequence classification that, at each step, only allows the original sequence or a tag.
+**Annotate reasoning trace**
 
 ```python
+# Custom decoder that re-generates the same output, but allows tagging:
+    # "Compute 2+3=5.\n" ==> "[problem_setup]Compute 2+3=5.[/problem_setup]"
 python annotate_constrained.py # currently 6 TPS on 4o mini (40 minutes for 1 13K token trace)
 ```

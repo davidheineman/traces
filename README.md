@@ -25,10 +25,19 @@ openai/gpt-oss-20b
 openai/gpt-oss-120b
 ```
 
+**Run vLLM server**
+
+```sh
+vllm serve Qwen/Qwen3-32B --port 8000 --max-model-len 32768
+```
+
 **Annotate reasoning trace**
 
 ```python
 # Custom decoder that re-generates the same output, but allows tagging:
     # "Compute 2+3=5.\n" ==> "[problem_setup]Compute 2+3=5.[/problem_setup]"
-python annotate_constrained.py # currently 6 TPS on 4o mini (40 minutes for 1 13K token trace)
+python src/annotate_constrained.py # currently 6 TPS on 4o mini (40 minutes for 1 13K token trace)
+
+# run in background
+nohup python src/annotate_constrained.py > /tmp/out.out 2>&1 &
 ```

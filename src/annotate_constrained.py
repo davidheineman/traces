@@ -1,12 +1,18 @@
 import json
+import requests
 import openai
+import re
 from pathlib import Path
 import tiktoken
+from transformers import AutoTokenizer
 from tqdm import tqdm
 from rich import print as pprint
 from openai._types import NOT_GIVEN
 
-enc = tiktoken.encoding_for_model("gpt-4o-mini")
+# enc = tiktoken.encoding_for_model("gpt-4o-mini")
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-32B")
+
+quiet = True
 
 ANNOTATED_DIR = Path("annotated")
 OUT_DIR = Path("out")
@@ -52,7 +58,7 @@ CLOSE_TAGS = [tag.replace("[", "[/") for tag in TAGS]
 ALL_TAGS = TAGS + CLOSE_TAGS
 
 
-def generate_token(content, allowed=None):
+def generate_token_openai(content, allowed=None):
     client = openai.OpenAI()
 
     bias = NOT_GIVEN
@@ -75,6 +81,40 @@ def generate_token(content, allowed=None):
     return content, logprobs
 
 
+def generate_token_vllm(content, allowed=None):
+    payload = {
+        "prompt": content,
+        "max_tokens": 1,
+        "temperature": 0.1,
+        "logprobs": 3,
+    }
+    
+    # Add logit bias if allowed tokens are specified
+    if allowed is not None:
+        allowed_ids = [tokenizer.encode(x, add_special_tokens=False)[0] for x in allowed]
+        if not quiet:
+            # Debug: print the allowed tokens
+            allowed_tokens = [tokenizer.decode([tid]) for tid in allowed_ids]
+            print(f"Allowed tokens: {allowed_tokens}")
+        payload["logit_bias"] = {str(tid): 100 for tid in allowed_ids}
+    
+    # Make request to vLLM server
+    response = requests.post(
+        "http://localhost:8000/v1/completions",
+        headers={"Content-Type": "application/json"},
+        json=payload
+    )
+    
+    response.raise_for_status()
+    result = response.json()
+    
+    choice = result["choices"][0]
+    content = choice["text"]
+    logprobs = choice["logprobs"]
+    
+    return content, logprobs
+
+
 def is_open(generation):
     if "[" not in generation:
         return False
@@ -85,8 +125,10 @@ def is_open(generation):
 def annotate_trace(trace):
     curr_trace = trace
     generation = ""
+
+    trace_tokens = tokenizer.encode(trace, add_special_tokens=False)
     
-    with tqdm(total=len(trace), desc="Annotating trace") as pbar:
+    with tqdm(total=len(trace_tokens), desc="Annotating trace") as pbar:
         while len(curr_trace) > 0:
             content = PROMPT.format(trace=trace) + generation
 
@@ -108,7 +150,7 @@ def annotate_trace(trace):
                     if tag.startswith(after_last_open):
                         allowed += [tag[len(after_last_open) :]]
 
-                assert len(allowed) > 0, allowed
+                assert len(allowed) > 0, (allowed, generation)
             else:
                 # ...</uncertainty_management>... # closed
                 # ...<uncertainty_management>...  # closed
@@ -120,18 +162,27 @@ def annotate_trace(trace):
                     *["\n" + tag for tag in all_tags],  # allow "\n[tag]"
                 ]
 
-            next_token, logprobs = generate_token(content, allowed)
+            # next_token, logprobs = generate_token_openai(content, allowed)
+            next_token, logprobs = generate_token_vllm(content, allowed)
 
             if curr_trace.startswith(next_token):
                 curr_trace = curr_trace[len(next_token) :]
+                pbar.update(1) # Update tqdm
 
             generation += next_token
-
-            # Update tqdm
-            prev_len = len(curr_trace)
-            pbar.update(prev_len - len(curr_trace))
     
     return generation
+
+
+def extract_thought(trace):
+    # Extract only the content within the first <think> </think> tokens
+    think_pattern = r'<think>(.*?)</think>'
+    think_match = re.search(think_pattern, trace, re.DOTALL)
+    
+    if not think_match:
+        raise RuntimeError("No <think> tags found in trace")
+    trace = think_match.group(1) # only keep first
+    return trace
 
 
 def main():
@@ -143,6 +194,12 @@ def main():
             traces.append(entry["output"][0]["text"])
 
     trace = traces[0]
+
+    trace = extract_thought(trace)
+
+    # Replace [ and ] => ( and )
+    # Allows the tags to work with the decoding algorithm
+    trace = trace.replace('[', '(').replace(']', ')')
 
     generation = annotate_trace(trace)
 

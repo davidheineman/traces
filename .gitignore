@@ -1,5 +1,5 @@
 .venv
 out
 annotated
-*.txt
+example.txt
 *.pyc

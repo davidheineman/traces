@@ -1,0 +1,163 @@
+import json
+import openai
+from pathlib import Path
+import tiktoken
+from tqdm import tqdm
+from rich import print as pprint
+from openai._types import NOT_GIVEN
+
+enc = tiktoken.encoding_for_model("gpt-4o-mini")
+
+ANNOTATED_DIR = Path("annotated")
+OUT_DIR = Path("out")
+ANNOTATED_DIR.mkdir(parents=True, exist_ok=True)
+
+PROMPT = """
+Rewrite this entire chain of thought but create tags around each of the parts of the CoT. 
+
+Use this set for the tags:
+
+1. [problem_setup]: Parsing or rephrasing the problem
+2. [plan_generation]: Stating or deciding on a plan of action, meta-reasoning
+3. [fact_retrieval]: Recalling facts, formulas, problem details without computation
+4. [active_computation]: Algebra, calculations, or other manipulations toward the answer
+5. [uncertainty_management]: Expressing confusion, re-evaluating, including backtracking
+6. [result_consolidation]: Aggregating intermediate results, summarizing, or preparing
+7. [self_checking]: Verifying previous steps, checking calculations, and re-confirmations
+8. [final_answer_emission]: Explicitly stating the final answer
+
+Put the tags like this [final_answer_emission]text example[/final_answer_emission]. make sure all text is tagged
+
+BEGIN TRACE:
+
+```
+{trace}
+```
+
+YOUR ANNOTATED TRACE:
+
+```\n"""
+
+TAGS = [
+    "[problem_setup]",
+    "[plan_generation]",
+    "[fact_retrieval]",
+    "[active_computation]",
+    "[uncertainty_management]",
+    "[result_consolidation]",
+    "[self_checking]",
+    "[final_answer_emission]",
+]
+CLOSE_TAGS = [tag.replace("[", "[/") for tag in TAGS]
+ALL_TAGS = TAGS + CLOSE_TAGS
+
+
+def generate_token(content, allowed=None):
+    client = openai.OpenAI()
+
+    bias = NOT_GIVEN
+    if allowed is not None:
+        allowed_ids = [enc.encode(x)[0] for x in allowed]
+        bias = {tid: 100 for tid in allowed_ids}
+
+    response = client.completions.create(
+        model="gpt-4o-mini",
+        prompt=content,
+        temperature=0.1,
+        max_tokens=1,  # Generate only 1 token at a time
+        logprobs=3,
+        logit_bias=bias,
+    )
+    choice = response.choices[0]
+    content = choice.text
+    logprobs = choice.logprobs
+
+    return content, logprobs
+
+
+def is_open(generation):
+    if "[" not in generation:
+        return False
+    last_open_index = generation.rfind("[")
+    return "]" not in generation[last_open_index:]
+
+
+def annotate_trace(trace):
+    curr_trace = trace
+    generation = ""
+    
+    with tqdm(total=len(trace), desc="Annotating trace") as pbar:
+        while len(curr_trace) > 0:
+            content = PROMPT.format(trace=trace) + generation
+
+            _open = is_open(content)
+
+            if _open:
+                # at this point it could be:
+                # ...<                                          # open!
+                # ...<uncertainty_                              # open!
+                # ...<uncertainty_management>...<               # open!
+                # ...<uncertainty_management>...</uncertainty_  # open!
+                # Get content after and including the last <
+                last_open_index = content.rfind("[")
+                after_last_open = content[last_open_index:]
+
+                # Find which tag this content is a prefix of
+                allowed = []
+                for tag in ALL_TAGS:
+                    if tag.startswith(after_last_open):
+                        allowed += [tag[len(after_last_open) :]]
+
+                assert len(allowed) > 0, allowed
+            else:
+                # ...</uncertainty_management>... # closed
+                # ...<uncertainty_management>...  # closed
+                all_tags = ALL_TAGS
+                allowed = [
+                    curr_trace[:150],  # only need enough chats for the first token
+                    *all_tags,
+                    *[" " + tag for tag in all_tags],  # allow " [tag]"
+                    *["\n" + tag for tag in all_tags],  # allow "\n[tag]"
+                ]
+
+            next_token, logprobs = generate_token(content, allowed)
+
+            if curr_trace.startswith(next_token):
+                curr_trace = curr_trace[len(next_token) :]
+
+            generation += next_token
+
+            # Update tqdm
+            prev_len = len(curr_trace)
+            pbar.update(prev_len - len(curr_trace))
+
+            # print(content)
+            # pprint(allowed)
+            # pprint(logprobs)
+    
+    return generation
+
+
+def main():
+    # Load model outputs
+    traces = []
+    with open(OUT_DIR / "aime:cot_responses.jsonl", "r") as f:
+        for line in f:
+            entry = json.loads(line)
+            traces.append(entry["output"][0]["text"])
+
+    trace = traces[0]
+
+    generation = annotate_trace(trace)
+
+    # Save the annotated generation
+    annotated_entry = {
+        "original_trace": trace,
+        "annotated_generation": generation
+    }
+    with open(ANNOTATED_DIR / "aime:cot_annotations.jsonl", "w") as f:
+        f.write(json.dumps(annotated_entry) + "\n")
+
+
+if __name__ == "__main__":
+    main()

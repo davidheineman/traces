@@ -18,9 +18,23 @@ model_dirs = [d for d in annotated_dir.iterdir() if d.is_dir()]
 # Store results for all models
 all_model_results = {}
 
+# Load model scores
+model_scores = {}
+out_dir = Path("out")
+
 for model_dir in model_dirs:
     model_name = model_dir.name
     print(f"Processing {model_name}...")
+    
+    # Load the score for this model
+    score_file = out_dir / model_name / "minerva_500:cot_metrics.json"
+    if score_file.exists():
+        with open(score_file, "r") as f:
+            score_data = json.load(f)
+            model_scores[model_name] = score_data["primary_score"]
+    else:
+        print(f"No score file found for {model_name}")
+        model_scores[model_name] = None
     
     # Find the annotated file (assuming there's one per model)
     annotated_files = list(model_dir.glob("*_annotated.jsonl"))
@@ -87,11 +101,14 @@ for tag in all_tags:
 # Sort tags by total tokens (largest to smallest)
 all_tags = sorted(all_tags, key=lambda tag: tag_totals[tag], reverse=True)
 
-# Create stacked bar chart
+# Sort models by their scores (highest to lowest)
+models = list(all_model_results.keys())
+models = sorted(models, key=lambda model: model_scores.get(model, -1), reverse=True)
+
+# Create first figure - absolute tokens
 fig, ax = plt.subplots(figsize=(10, 6))
 
 # Prepare data for stacked bar chart
-models = list(all_model_results.keys())
 bottom = np.zeros(len(models))
 
 # Define colors for each tag
@@ -108,6 +125,13 @@ for tag in reversed(all_tags):
     ax.bar(models, values, bottom=bottom, label=tag, color=tag_colors[tag])
     bottom += values
 
+# Add scores on top of bars
+for i, model in enumerate(models):
+    score = model_scores.get(model)
+    if score is not None:
+        ax.text(i, bottom[i] + 10, f'score = {score*100:.1f}', 
+                ha='center', va='bottom', fontsize=9, fontweight='bold')
+
 ax.set_title('Sentence-level Tagging of Thinking Traces (MATH 500, 0shot, temp=0)')
 ax.set_ylabel('Avg. Tokens per Thought Trace')
 # Reverse the legend order to match the visual stacking order
@@ -116,4 +140,40 @@ ax.legend(reversed(handles), reversed(labels), bbox_to_anchor=(1.05, 1), loc='up
 plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
 plt.savefig('analysis/dist.png', dpi=300, bbox_inches='tight')
+plt.show()
+
+# Create second figure - proportional distribution
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Calculate total tokens per model for normalization
+model_totals = {}
+for model in models:
+    total = sum(all_model_results[model].get(tag, 0) for tag in all_tags)
+    model_totals[model] = total
+
+# Prepare data for proportional stacked bar chart
+bottom = np.zeros(len(models))
+
+# Plot each tag as a layer in the stacked bar (proportional)
+for tag in reversed(all_tags):
+    values = []
+    for model in models:
+        if model_totals[model] > 0:
+            proportion = all_model_results[model].get(tag, 0) / model_totals[model]
+        else:
+            proportion = 0
+        values.append(proportion)
+    
+    ax.bar(models, values, bottom=bottom, label=tag, color=tag_colors[tag])
+    bottom += values
+
+ax.set_title('Proportional Distribution of Thinking Trace Components (MATH 500, 0shot, temp=0)')
+ax.set_ylabel('Proportion of Thought Trace')
+ax.set_ylim(0, 1)
+# Reverse the legend order to match the visual stacking order
+handles, labels = ax.get_legend_handles_labels()
+ax.legend(reversed(handles), reversed(labels), bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.savefig('analysis/dist_proportional.png', dpi=300, bbox_inches='tight')
 plt.show()

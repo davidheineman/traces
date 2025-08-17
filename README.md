@@ -2,10 +2,24 @@
 
 ```sh
 pip install -r requirements.txt
-
-# GPT OSS requires pre-release vLLM
-uv pip install --pre vllm==0.10.1+gptoss --extra-index-url https://wheels.vllm.ai/gpt-oss/ --extra-index-url https://download.pytorch.org/whl/nightly/cu128  --index-strategy unsafe-best-match
 ```
+
+<details>
+<summary>GPT OSS Install</summary>
+
+```sh
+# GPT OSS requires pre-release vLLM
+# https://cookbook.openai.com/articles/gpt-oss/run-vllm
+uv pip install --pre vllm==0.10.1+gptoss \
+    --extra-index-url https://wheels.vllm.ai/gpt-oss/ \
+    --extra-index-url https://download.pytorch.org/whl/nightly/cu128 \
+    --index-strategy unsafe-best-match
+
+# ... and install flash infer
+uv pip install --system https://download.pytorch.org/whl/cu128/flashinfer/flashinfer_python-0.2.6.post1%2Bcu128torch2.7-cp39-abi3-linux_x86_64.whl
+```
+
+</details>
 
 **Run eval**
 
@@ -13,7 +27,9 @@ uv pip install --pre vllm==0.10.1+gptoss --extra-index-url https://wheels.vllm.a
 minieval -t minerva_500:cot -m deepseek-ai/DeepSeek-R1-0528-Qwen3-8B -b vllm --writer.save_path out/DeepSeek-R1-0528-Qwen3-8B
 minieval -t minerva_500:cot -m open-thoughts/OpenThinker3-7B -b vllm --writer.save_path out/OpenThinker3-7B
 minieval -t minerva_500:cot -m Qwen/Qwen3-30B-A3B-Thinking-2507 -b vllm --writer.save_path out/Qwen3-30B-A3B-Thinking-2507
-minieval -t minerva_500:cot -m openai/gpt-oss-20b -b vllm --writer.save_path out/gpt-oss-20b
+
+# Args required for A100, not for H100
+VLLM_ATTENTION_BACKEND=TRITON_ATTN_VLLM_V1 TORCH_CUDA_ARCH_LIST=8.0 minieval -t minerva_500:cot -m openai/gpt-oss-20b -b vllm --writer.save_path out/gpt-oss-20b
 ```
 
 <details>
@@ -40,6 +56,7 @@ openai/gpt-oss-120b
 # Use GPT to annotate (~1M input tokens per trace)
 python src/annotate_sentences.py -t minerva_500:cot -m OpenThinker3-7B
 python src/annotate_sentences.py -t minerva_500:cot -m DeepSeek-R1-0528-Qwen3-8B
+python src/annotate_sentences.py -t minerva_500:cot -m gpt-oss-20b
 ```
 
 <details>
@@ -71,3 +88,13 @@ python analysis/distribution.py
 ```
 
 <img src="analysis/dist.png" alt="Distribution of thinking trace components" style="max-width: 500px;">
+
+<img src="analysis/dist_proportional.png" alt="Distribution of thinking trace components" style="max-width: 500px;">
+
+### More ideas
+
+- How do trends look:
+    - for intermediate RL steps?
+    - for different amounts of GPT OSS reasoning?
+    - for different tasks?
+    - for the subset of tasks with lots of tokens? a small amount of tokens?

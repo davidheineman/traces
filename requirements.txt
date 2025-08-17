@@ -4,3 +4,4 @@ tiktoken
 tqdm
 minieval
 ipykernel
+spacy

@@ -6,7 +6,9 @@ from tqdm import tqdm
 import re
 import json
 from concurrent.futures import as_completed
+import spacy
 
+EN_CORE_WEB_SM = spacy.load("en_core_web_sm")
 
 ANNOTATED_DIR = Path("annotated")
 OUT_DIR = Path("out")
@@ -45,23 +47,9 @@ Respond with only the category name (e.g., "active_computation").
 
 
 def split_sentences(text):
-    # Split on sentence boundaries, keeping the delimiters
-    sentences = re.split(r"([.!?]+)", text)
-
-    # Recombine sentences with their punctuation
-    result = []
-    for i in range(0, len(sentences) - 1, 2):
-        sentence = sentences[i]
-        if i + 1 < len(sentences):
-            sentence += sentences[i + 1]
-        if sentence.strip():
-            result.append(sentence)
-
-    # Handle case where text doesn't end with punctuation
-    if len(sentences) % 2 == 1 and sentences[-1].strip():
-        result.append(sentences[-1])
-
-    return result
+    doc = EN_CORE_WEB_SM(text)
+    sents = [sent.text for sent in doc.sents]
+    return sents
 
 
 def classify_sentence(trace, sentence):

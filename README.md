@@ -34,18 +34,21 @@ openai/gpt-oss-120b
 
 </details>
 
-**Run vLLM server**
-
-```sh
-vllm serve Qwen/Qwen3-32B --port 8000 --max-model-len 32768
-```
-
 **Annotate reasoning trace (per-sentence)**
 
 ```python
 # Use GPT to annotate (~1M input tokens per trace)
 python src/annotate_sentences.py -t minerva_500:cot -m OpenThinker3-7B
 python src/annotate_sentences.py -t minerva_500:cot -m DeepSeek-R1-0528-Qwen3-8B
+```
+
+<details>
+<summary>Token-level annotation</summary>
+
+**Run vLLM server**
+
+```sh
+vllm serve Qwen/Qwen3-32B --port 8000 --max-model-len 32768
 ```
 
 **Annotate reasoning trace (per-token, custom decoder)**
@@ -58,6 +61,8 @@ python src/annotate_constrained.py # currently 6 TPS on 4o mini (40 minutes for 
 # run in background
 nohup python src/annotate_constrained.py > /tmp/out.out 2>&1 &
 ```
+
+</details>
 
 ### Visualize
 
